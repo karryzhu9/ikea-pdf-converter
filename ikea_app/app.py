@@ -259,6 +259,16 @@ if uploaded:
         import pandas as pd
         st.subheader("Select items for your quotation")
 
+        # Category filter
+        all_categories = sorted(set(i['Cabinet / Category'] for i in items))
+        selected_cats = st.multiselect(
+            "Filter by category (leave blank to show all)",
+            options=all_categories,
+            default=[]
+        )
+        filtered_items = items if not selected_cats else [i for i in items if i['Cabinet / Category'] in selected_cats]
+        filtered_indices = [items.index(i) for i in filtered_items]
+
         display_df = pd.DataFrame([{
             'Select': False,
             'Product Name': i['Product Name'],
@@ -267,7 +277,7 @@ if uploaded:
             'Qty': i['Qty'],
             'Unit Price': i['Unit Price (EUR)'],
             'Total': i['Total Price (EUR)'],
-        } for i in items])
+        } for i in filtered_items])
 
         edited = st.data_editor(
             display_df,
@@ -285,7 +295,7 @@ if uploaded:
             hide_index=True
         )
 
-        selected_indices = edited.index[edited['Select'] == True].tolist()
+        selected_indices = [filtered_indices[i] for i in edited.index[edited['Select'] == True].tolist()]
         selected_total = sum(items[i]['Total Price (EUR)'] for i in selected_indices)
         grand_total = sum(i['Total Price (EUR)'] for i in items)
 
