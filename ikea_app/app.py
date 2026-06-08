@@ -259,8 +259,12 @@ if uploaded:
         import pandas as pd
         st.subheader("Select items for your quotation")
 
+        # Init session state for persistent selections
+        if 'selected_set' not in st.session_state:
+            st.session_state.selected_set = set()
+
         # Category filter
-        all_categories = sorted(set(i['Cabinet / Category'] for i in items))
+        all_categories = sorted(set(i['Cabinet / Category'] for i in items), key=lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else 999)
         selected_cats = st.multiselect(
             "Filter by category (leave blank to show all)",
             options=all_categories,
@@ -270,14 +274,14 @@ if uploaded:
         filtered_indices = [items.index(i) for i in filtered_items]
 
         display_df = pd.DataFrame([{
-            'Select': False,
+            'Select': idx in st.session_state.selected_set,
             'Product Name': i['Product Name'],
             'Description': i['Description'],
             'Article No.': i['Article No.'],
             'Qty': i['Qty'],
             'Unit Price': i['Unit Price (EUR)'],
             'Total': i['Total Price (EUR)'],
-        } for i in filtered_items])
+        } for idx, i in zip(filtered_indices, filtered_items)])
 
         edited = st.data_editor(
             display_df,
@@ -295,7 +299,15 @@ if uploaded:
             hide_index=True
         )
 
-        selected_indices = [filtered_indices[i] for i in edited.index[edited['Select'] == True].tolist()]
+        # Update session state with current visible selections
+        for i, row in edited.iterrows():
+            real_idx = filtered_indices[i]
+            if row['Select']:
+                st.session_state.selected_set.add(real_idx)
+            else:
+                st.session_state.selected_set.discard(real_idx)
+
+        selected_indices = list(st.session_state.selected_set)
         selected_total = sum(items[i]['Total Price (EUR)'] for i in selected_indices)
         grand_total = sum(i['Total Price (EUR)'] for i in items)
 
