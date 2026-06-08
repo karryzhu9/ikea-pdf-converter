@@ -234,8 +234,7 @@ if uploaded:
     if not items:
         st.error("Could not parse any items. Make sure this is an IKEA Planner PDF.")
     else:
-        img_count = sum(1 for i in items if i.get('_image'))
-        st.success(f"✅ Found **{len(items)} items** ({img_count} with images) across **{len(set(i['Cabinet / Category'] for i in items))} categories**")
+        st.success(f"✅ Found **{len(items)} items** across **{len(set(i['Cabinet / Category'] for i in items))} categories**")
 
         import pandas as pd
         st.subheader("Select items for your quotation")
