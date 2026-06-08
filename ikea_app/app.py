@@ -5,6 +5,7 @@ import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 st.set_page_config(page_title="IKEA PDF → Excel", page_icon="🛋️", layout="centered")
 
@@ -29,24 +30,18 @@ def parse_ikea_pdf(pdf_file):
             i = 0
             while i < len(lines):
                 line = lines[i].strip()
-
-                # Cabinet heading: "1. ME/MA 144 - ..."
                 if re.match(r'^\d+\.\s+[A-Z]', line) and len(line) > 5:
                     current_cabinet = line
                     i += 1
                     continue
-
-                # Item line: "PRODUCTNAME  Nx  €XX.XX"
                 m = item_pattern.match(line)
                 if m:
                     prod_name = m.group(1).strip()
                     qty = int(m.group(2))
                     total_price = float(m.group(3).replace(',', ''))
-
                     desc_lines = []
                     unit_price = None
                     article_no = None
-
                     j = i + 1
                     while j < len(lines) and j < i + 7:
                         nl = lines[j].strip()
@@ -59,7 +54,6 @@ def parse_ikea_pdf(pdf_file):
                         elif nl and not re.match(r'^\d+ \(\d+\)$', nl):
                             desc_lines.append(nl)
                         j += 1
-
                     items.append({
                         'Cabinet / Category': current_cabinet,
                         'Product Name': prod_name,
@@ -72,9 +66,7 @@ def parse_ikea_pdf(pdf_file):
                     })
                     i = j
                     continue
-
                 i += 1
-
     return items
 
 
@@ -86,7 +78,7 @@ def build_excel(items):
     hdr_fill  = PatternFill("solid", fgColor="003087")
     alt_fill  = PatternFill("solid", fgColor="EEF3FF")
     tot_fill  = PatternFill("solid", fgColor="001F5E")
-    note_fill = PatternFill("solid", fgColor="FFF9E6")
+    yes_fill  = PatternFill("solid", fgColor="E6FFE6")
     thin = Side(style="thin", color="CCCCCC")
     bdr  = Border(left=thin, right=thin, top=thin, bottom=thin)
 
@@ -99,7 +91,9 @@ def build_excel(items):
         if width:
             ws.column_dimensions[get_column_letter(col)].width = width
 
-    # ── Sheet 1 ──────────────────────────────────────────────────────────────
+    n = len(items)
+
+    # ── Sheet 1: All Items ────────────────────────────────────────────────────
     ws1 = wb.active
     ws1.title = "All Items"
 
@@ -110,6 +104,11 @@ def build_excel(items):
         hdr_cell(ws1, 1, ci, h, w)
     ws1.row_dimensions[1].height = 28
     ws1.freeze_panes = "A2"
+
+    # Y/N dropdown validation
+    dv = DataValidation(type="list", formula1='"Y,N"', allow_blank=True, showDropDown=False)
+    dv.sqref = f"H2:H{n+1}"
+    ws1.add_data_validation(dv)
 
     for ri, item in enumerate(items, 2):
         fill = alt_fill if ri % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
@@ -127,8 +126,8 @@ def build_excel(items):
             else:
                 c.alignment = Alignment(vertical="center", wrap_text=True)
 
-    # Grand total
-    tr = len(items) + 2
+    # Grand total row
+    tr = n + 2
     for ci in range(1, 9):
         c = ws1.cell(row=tr, column=ci)
         c.fill = tot_fill
@@ -142,43 +141,58 @@ def build_excel(items):
     tc.alignment = Alignment(horizontal="right")
     tc.fill = tot_fill
 
-    # ── Sheet 2 ──────────────────────────────────────────────────────────────
+    # ── Sheet 2: Selected Items (auto-populated via formulas) ─────────────────
     ws2 = wb.create_sheet("Selected Items")
 
-    note = ("HOW TO USE:  In the 'All Items' sheet, type  Y  in the 'Select (Y/N)' column "
-            "for each item you want. Then copy those rows here into row 3 onwards.")
+    note = "✅ This sheet automatically shows items marked Y in the 'All Items' sheet. Just type Y in column H there — no copy/paste needed."
     ws2["A1"] = note
-    ws2["A1"].font = Font(name="Arial", size=10, italic=True, color="555555")
-    ws2["A1"].fill = note_fill
+    ws2["A1"].font = Font(name="Arial", size=10, italic=True, color="1a6b1a")
+    ws2["A1"].fill = PatternFill("solid", fgColor="E6FFE6")
     ws2["A1"].alignment = Alignment(wrap_text=True, vertical="top")
     ws2.merge_cells("A1:G1")
-    ws2.row_dimensions[1].height = 40
+    ws2.row_dimensions[1].height = 35
 
     sel_cols   = ['Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)']
     sel_widths = [42, 18, 50, 14, 6, 18, 18]
+    col_map    = [1, 2, 3, 4, 5, 6, 7]  # columns in Sheet 1
+
     for ci, (h, w) in enumerate(zip(sel_cols, sel_widths), 1):
         hdr_cell(ws2, 2, ci, h, w)
     ws2.row_dimensions[2].height = 25
 
-    # Paste area placeholder
-    for ri in range(3, 8):
-        for ci in range(1, 8):
-            c = ws2.cell(row=ri, column=ci, value="← Paste selected rows here" if (ri == 3 and ci == 1) else "")
-            c.font = Font(name="Arial", size=10, italic=True, color="AAAAAA")
-            c.fill = PatternFill("solid", fgColor="FAFAFA")
+    # Auto-populate rows using array-style formulas
+    # Each row in Sheet2 pulls the Nth "Y" row from Sheet1
+    for row_i in range(n):
+        excel_row = row_i + 3
+        for ci, src_col in enumerate(col_map, 1):
+            col_letter = get_column_letter(src_col)
+            formula = (
+                f"=IFERROR(INDEX('All Items'!{col_letter}$2:{col_letter}${n+1},"
+                f"SMALL(IF('All Items'!$H$2:$H${n+1}=\"Y\","
+                f"ROW('All Items'!$H$2:$H${n+1})-ROW('All Items'!$H$2)+1),"
+                f"ROW(A{row_i+1}))),\"\")"
+            )
+            c = ws2.cell(row=excel_row, column=ci, value=formula)
+            c.font = Font(name="Arial", size=10)
             c.border = bdr
+            c.alignment = Alignment(vertical="center", wrap_text=(ci in [1,3]))
+            if ci in (6, 7):
+                c.number_format = '#,##0.00'
+                c.alignment = Alignment(horizontal="right", vertical="center")
 
     # Selected total row
+    total_row = n + 3
     for ci in range(1, 8):
-        ws2.cell(row=9, column=ci).fill = tot_fill
-        ws2.cell(row=9, column=ci).border = bdr
-    ws2.cell(row=9, column=6, value="SELECTED TOTAL").font = Font(name="Arial", bold=True, color="FFFFFF", size=11)
-    ws2.cell(row=9, column=6).alignment = Alignment(horizontal="right")
-    ws2.cell(row=9, column=6).fill = tot_fill
-    ws2.cell(row=9, column=7, value="=SUM(G3:G8)").font = Font(name="Arial", bold=True, color="FFDD00", size=11)
-    ws2.cell(row=9, column=7).number_format = '#,##0.00'
-    ws2.cell(row=9, column=7).alignment = Alignment(horizontal="right")
-    ws2.cell(row=9, column=7).fill = tot_fill
+        ws2.cell(row=total_row, column=ci).fill = tot_fill
+        ws2.cell(row=total_row, column=ci).border = bdr
+    ws2.cell(row=total_row, column=6, value="SELECTED TOTAL").font = Font(name="Arial", bold=True, color="FFFFFF", size=11)
+    ws2.cell(row=total_row, column=6).alignment = Alignment(horizontal="right")
+    ws2.cell(row=total_row, column=6).fill = tot_fill
+    tc2 = ws2.cell(row=total_row, column=7, value=f"=SUMIF('All Items'!H2:H{n+1},\"Y\",'All Items'!G2:G{n+1})")
+    tc2.font = Font(name="Arial", bold=True, color="FFDD00", size=11)
+    tc2.number_format = '#,##0.00'
+    tc2.alignment = Alignment(horizontal="right")
+    tc2.fill = tot_fill
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -199,16 +213,14 @@ if uploaded:
     else:
         st.success(f"✅ Found **{len(items)} items** across **{len(set(i['Cabinet / Category'] for i in items))} cabinets/categories**")
 
-        # Preview table
-        st.subheader("Preview")
         import pandas as pd
+        st.subheader("Preview")
         df = pd.DataFrame(items)[['Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)']]
         st.dataframe(df, use_container_width=True, height=350)
 
         total = sum(i['Total Price (EUR)'] for i in items)
         st.metric("Grand Total", f"€{total:,.2f}")
 
-        # Download button
         excel_buf = build_excel(items)
         filename = uploaded.name.replace(".pdf", "_ItemList.xlsx")
         st.download_button(
@@ -219,7 +231,7 @@ if uploaded:
             use_container_width=True
         )
 
-        st.info("💡 In the downloaded Excel, go to **All Items** sheet and type **Y** in the last column to flag items for your quotation, then copy them to **Selected Items** sheet.")
+        st.info("💡 In the Excel file: go to **All Items** sheet → click the dropdown in the **Select (Y/N)** column → choose **Y** for items you want → **Selected Items** sheet updates automatically!")
 
 st.markdown("---")
 st.caption("Built for IKEA Planner PDFs · Supports METOD kitchen range")
