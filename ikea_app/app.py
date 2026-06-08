@@ -12,8 +12,6 @@ st.set_page_config(page_title="IKEA PDF → Excel", page_icon="🛋️", layout=
 st.title("🛋️ IKEA Planner PDF → Excel")
 st.markdown("Upload your IKEA planner PDF and get a clean Excel file instantly.")
 
-# ── Parser ────────────────────────────────────────────────────────────────────
-
 def parse_ikea_pdf(pdf_file):
     items = []
     current_cabinet = "General"
@@ -70,15 +68,12 @@ def parse_ikea_pdf(pdf_file):
     return items
 
 
-# ── Excel Builder ─────────────────────────────────────────────────────────────
-
 def build_excel(items):
     wb = Workbook()
 
-    hdr_fill  = PatternFill("solid", fgColor="003087")
-    alt_fill  = PatternFill("solid", fgColor="EEF3FF")
-    tot_fill  = PatternFill("solid", fgColor="001F5E")
-    yes_fill  = PatternFill("solid", fgColor="E6FFE6")
+    hdr_fill = PatternFill("solid", fgColor="003087")
+    alt_fill = PatternFill("solid", fgColor="EEF3FF")
+    tot_fill = PatternFill("solid", fgColor="001F5E")
     thin = Side(style="thin", color="CCCCCC")
     bdr  = Border(left=thin, right=thin, top=thin, bottom=thin)
 
@@ -105,7 +100,7 @@ def build_excel(items):
     ws1.row_dimensions[1].height = 28
     ws1.freeze_panes = "A2"
 
-    # Y/N dropdown validation
+    # Y/N dropdown
     dv = DataValidation(type="list", formula1='"Y,N"', allow_blank=True, showDropDown=False)
     dv.sqref = f"H2:H{n+1}"
     ws1.add_data_validation(dv)
@@ -126,7 +121,7 @@ def build_excel(items):
             else:
                 c.alignment = Alignment(vertical="center", wrap_text=True)
 
-    # Grand total row
+    # Grand total
     tr = n + 2
     for ci in range(1, 9):
         c = ws1.cell(row=tr, column=ci)
@@ -141,10 +136,10 @@ def build_excel(items):
     tc.alignment = Alignment(horizontal="right")
     tc.fill = tot_fill
 
-    # ── Sheet 2: Selected Items (auto-populated via formulas) ─────────────────
+    # ── Sheet 2: Selected Items (FILTER formula - auto updates instantly) ─────
     ws2 = wb.create_sheet("Selected Items")
 
-    note = "✅ This sheet automatically shows items marked Y in the 'All Items' sheet. Just type Y in column H there — no copy/paste needed."
+    note = "✅ Type Y in the 'Select (Y/N)' column in the All Items sheet — this sheet updates automatically."
     ws2["A1"] = note
     ws2["A1"].font = Font(name="Arial", size=10, italic=True, color="1a6b1a")
     ws2["A1"].fill = PatternFill("solid", fgColor="E6FFE6")
@@ -154,34 +149,22 @@ def build_excel(items):
 
     sel_cols   = ['Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)']
     sel_widths = [42, 18, 50, 14, 6, 18, 18]
-    col_map    = [1, 2, 3, 4, 5, 6, 7]  # columns in Sheet 1
-
     for ci, (h, w) in enumerate(zip(sel_cols, sel_widths), 1):
         hdr_cell(ws2, 2, ci, h, w)
     ws2.row_dimensions[2].height = 25
 
-    # Auto-populate rows using array-style formulas
-    # Each row in Sheet2 pulls the Nth "Y" row from Sheet1
-    for row_i in range(n):
-        excel_row = row_i + 3
-        for ci, src_col in enumerate(col_map, 1):
-            col_letter = get_column_letter(src_col)
-            formula = (
-                f"=IFERROR(INDEX('All Items'!{col_letter}$2:{col_letter}${n+1},"
-                f"SMALL(IF('All Items'!$H$2:$H${n+1}=\"Y\","
-                f"ROW('All Items'!$H$2:$H${n+1})-ROW('All Items'!$H$2)+1),"
-                f"ROW(A{row_i+1}))),\"\")"
-            )
-            c = ws2.cell(row=excel_row, column=ci, value=formula)
-            c.font = Font(name="Arial", size=10)
-            c.border = bdr
-            c.alignment = Alignment(vertical="center", wrap_text=(ci in [1,3]))
-            if ci in (6, 7):
-                c.number_format = '#,##0.00'
-                c.alignment = Alignment(horizontal="right", vertical="center")
+    # Single FILTER formula in A3 — spills automatically into all rows/columns
+    # FILTER(range, condition, if_empty) — works in Excel 365 and Excel 2019+
+    filter_formula = (
+        f"=IFERROR(FILTER('All Items'!A2:G{n+1},"
+        f"'All Items'!H2:H{n+1}=\"Y\","
+        f"\"No items selected\"),\"No items selected\")"
+    )
+    c = ws2.cell(row=3, column=1, value=filter_formula)
+    c.font = Font(name="Arial", size=10)
 
-    # Selected total row
-    total_row = n + 3
+    # Selected total using SUMIF — always live
+    total_row = n + 4
     for ci in range(1, 8):
         ws2.cell(row=total_row, column=ci).fill = tot_fill
         ws2.cell(row=total_row, column=ci).border = bdr
@@ -231,7 +214,7 @@ if uploaded:
             use_container_width=True
         )
 
-        st.info("💡 In the Excel file: go to **All Items** sheet → click the dropdown in the **Select (Y/N)** column → choose **Y** for items you want → **Selected Items** sheet updates automatically!")
+        st.info("💡 In the Excel: go to **All Items** → type **Y** in column H next to any item → switch to **Selected Items** — it updates automatically!")
 
 st.markdown("---")
 st.caption("Built for IKEA Planner PDFs · Supports METOD kitchen range")
