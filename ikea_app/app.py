@@ -94,6 +94,24 @@ def parse_ikea_pdf(pdf_file):
     return items
 
 
+def autofit_sheet(ws):
+    """Autofit all columns based on content and center all cells."""
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            try:
+                cell_len = len(str(cell.value)) if cell.value else 0
+                if cell_len > max_len:
+                    max_len = cell_len
+            except:
+                pass
+        # Cap description col at 55, others reasonable max
+        adjusted = min(max_len + 4, 55)
+        adjusted = max(adjusted, 8)
+        ws.column_dimensions[col_letter].width = adjusted
+
+
 def build_excel(items, selected_indices=None):
     wb = Workbook()
 
@@ -157,11 +175,10 @@ def build_excel(items, selected_indices=None):
     ws1.title = "All Items"
 
     all_cols   = ['#', 'Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)','Select (Y/N)']
-    all_widths = [5, 40, 18, 48, 14, 6, 18, 18, 12]
 
-    for ci, (h, w) in enumerate(zip(all_cols, all_widths), 1):
-        hdr_cell(ws1, 1, ci, h, w)
-    ws1.row_dimensions[1].height = 28
+    for ci, h in enumerate(all_cols, 1):
+        hdr_cell(ws1, 1, ci, h)
+    ws1.row_dimensions[1].height = 32
     ws1.freeze_panes = "A2"
 
     # Y/N dropdown on col I
@@ -185,14 +202,15 @@ def build_excel(items, selected_indices=None):
     tc.alignment = Alignment(horizontal="right")
     tc.fill = tot_fill
 
+    autofit_sheet(ws1)
+
     # ── Sheet 2: Selected Items ───────────────────────────────────────────────
     ws2 = wb.create_sheet("Selected Items")
 
     sel_cols   = ['#', 'Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)']
-    sel_widths = [5, 40, 18, 48, 14, 6, 18, 18]
-    for ci, (h, w) in enumerate(zip(sel_cols, sel_widths), 1):
-        hdr_cell(ws2, 1, ci, h, w)
-    ws2.row_dimensions[1].height = 28
+    for ci, h in enumerate(sel_cols, 1):
+        hdr_cell(ws2, 1, ci, h)
+    ws2.row_dimensions[1].height = 32
 
     selected = [items[i] for i in selected_indices] if selected_indices else []
 
@@ -216,6 +234,8 @@ def build_excel(items, selected_indices=None):
     tc2.number_format = '#,##0.00'
     tc2.alignment = Alignment(horizontal="right")
     tc2.fill = tot_fill
+
+    autofit_sheet(ws2)
 
     buf = io.BytesIO()
     wb.save(buf)
