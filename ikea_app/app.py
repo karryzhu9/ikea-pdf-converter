@@ -150,23 +150,27 @@ def build_excel(items, selected_indices=None):
             # Data columns (col 2 onwards)
             for ci, key in enumerate(cols, 2):
                 val = item.get(key, '')
-                # Only show cabinet name on first row of each group
-                if key == 'Cabinet / Category':
-                    if val == prev_cabinet:
-                        val = ''
-                    else:
-                        prev_cabinet = val
                 c = ws.cell(row=ri, column=ci, value=val)
-                c.font = Font(name="Arial", size=10, bold=(key == 'Cabinet / Category' and val != ''))
+                c.font = Font(name="Arial", size=10)
                 c.fill = fill
                 c.border = bdr
                 if ci in (7, 8):
                     c.number_format = '#,##0.00'
-                    c.alignment = Alignment(horizontal="right", vertical="center")
+                    c.alignment = Alignment(horizontal="center", vertical="center")
                 elif key == 'Select (Y/N)':
                     c.alignment = Alignment(horizontal="center", vertical="center")
                 else:
-                    c.alignment = Alignment(vertical="center", wrap_text=False)
+                    c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        # Style category column (col 2) with distinct fill
+        cat_fill = PatternFill("solid", fgColor="D6E4FF")
+        for ri, item in enumerate(items_list, start_row):
+            cell = ws.cell(row=ri, column=2)
+            cell.value = item['Cabinet / Category']
+            cell.font = Font(name="Arial", size=10, bold=True, color="051464")
+            cell.fill = cat_fill
+            cell.border = bdr
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     n = len(items)
 
@@ -275,6 +279,7 @@ if uploaded:
 
         display_df = pd.DataFrame([{
             'Select': idx in st.session_state.selected_set,
+            'Category': i['Cabinet / Category'],
             'Product Name': i['Product Name'],
             'Description': i['Description'],
             'Article No.': i['Article No.'],
@@ -301,6 +306,7 @@ if uploaded:
             display_df,
             column_config={
                 "Select": st.column_config.CheckboxColumn("✅ Select", default=False, width="small"),
+                "Category": st.column_config.TextColumn("Category", width="medium"),
                 "Product Name": st.column_config.TextColumn("Product Name", width="medium"),
                 "Description": st.column_config.TextColumn("Description", width="large"),
                 "Article No.": st.column_config.TextColumn("Article No.", width="small"),
