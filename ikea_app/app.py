@@ -283,7 +283,21 @@ if uploaded:
             'Total': i['Total Price (EUR)'],
         } for idx, i in zip(filtered_indices, filtered_items)])
 
-        edited = st.data_editor(
+        editor_key = "editor_" + "_".join(selected_cats)
+
+        def sync_selections():
+            edited_state = st.session_state[editor_key]
+            if "edited_rows" in edited_state:
+                for row_str, changes in edited_state["edited_rows"].items():
+                    row_i = int(row_str)
+                    real_idx = filtered_indices[row_i]
+                    if "Select" in changes:
+                        if changes["Select"]:
+                            st.session_state.selected_set.add(real_idx)
+                        else:
+                            st.session_state.selected_set.discard(real_idx)
+
+        st.data_editor(
             display_df,
             column_config={
                 "Select": st.column_config.CheckboxColumn("✅ Select", default=False, width="small"),
@@ -296,16 +310,10 @@ if uploaded:
             },
             use_container_width=True,
             height=500,
-            hide_index=True
+            hide_index=True,
+            key=editor_key,
+            on_change=sync_selections
         )
-
-        # Update session state with current visible selections
-        for i, row in edited.iterrows():
-            real_idx = filtered_indices[i]
-            if row['Select']:
-                st.session_state.selected_set.add(real_idx)
-            else:
-                st.session_state.selected_set.discard(real_idx)
 
         selected_indices = list(st.session_state.selected_set)
         selected_total = sum(items[i]['Total Price (EUR)'] for i in selected_indices)
