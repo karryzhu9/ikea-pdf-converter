@@ -119,21 +119,14 @@ def build_excel(items, selected_indices=None):
         
         for ri, item in enumerate(items_list, start_row):
             fill = alt_fill if ri % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
-            ws.row_dimensions[ri].height = 45
+            ws.row_dimensions[ri].height = 20
 
-            # Image column (col 1)
-            img_buf = item.get('_image')
-            if img_buf:
-                try:
-                    img_buf.seek(0)
-                    xl_img = XLImage(img_buf)
-                    xl_img.width = 50
-                    xl_img.height = 40
-                    ws.add_image(xl_img, f"A{ri}")
-                except:
-                    pass
-            ws.cell(row=ri, column=1).fill = fill
-            ws.cell(row=ri, column=1).border = bdr
+            # Row number column (col 1)
+            c = ws.cell(row=ri, column=1, value=ri - start_row + 1)
+            c.font = Font(name="Arial", size=10, bold=True, color="003087")
+            c.fill = fill
+            c.border = bdr
+            c.alignment = Alignment(horizontal="center", vertical="center")
 
             # Data columns (col 2 onwards)
             for ci, key in enumerate(cols, 2):
@@ -156,8 +149,8 @@ def build_excel(items, selected_indices=None):
     ws1 = wb.active
     ws1.title = "All Items"
 
-    all_cols   = ['Image', 'Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)','Select (Y/N)']
-    all_widths = [8, 40, 18, 48, 14, 6, 18, 18, 12]
+    all_cols   = ['#', 'Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)','Select (Y/N)']
+    all_widths = [5, 40, 18, 48, 14, 6, 18, 18, 12]
 
     for ci, (h, w) in enumerate(zip(all_cols, all_widths), 1):
         hdr_cell(ws1, 1, ci, h, w)
@@ -188,8 +181,8 @@ def build_excel(items, selected_indices=None):
     # ── Sheet 2: Selected Items ───────────────────────────────────────────────
     ws2 = wb.create_sheet("Selected Items")
 
-    sel_cols   = ['Image', 'Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)']
-    sel_widths = [8, 40, 18, 48, 14, 6, 18, 18]
+    sel_cols   = ['#', 'Cabinet / Category','Product Name','Description','Article No.','Qty','Unit Price (EUR)','Total Price (EUR)']
+    sel_widths = [5, 40, 18, 48, 14, 6, 18, 18]
     for ci, (h, w) in enumerate(zip(sel_cols, sel_widths), 1):
         hdr_cell(ws2, 1, ci, h, w)
     ws2.row_dimensions[1].height = 28
