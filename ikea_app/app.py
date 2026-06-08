@@ -117,9 +117,10 @@ def build_excel(items, selected_indices=None):
         if include_select:
             cols.append('Select (Y/N)')
         
+        prev_cabinet = None
         for ri, item in enumerate(items_list, start_row):
             fill = alt_fill if ri % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
-            ws.row_dimensions[ri].height = 20
+            ws.row_dimensions[ri].height = 22
 
             # Row number column (col 1)
             c = ws.cell(row=ri, column=1, value=ri - start_row + 1)
@@ -131,17 +132,23 @@ def build_excel(items, selected_indices=None):
             # Data columns (col 2 onwards)
             for ci, key in enumerate(cols, 2):
                 val = item.get(key, '')
+                # Only show cabinet name on first row of each group
+                if key == 'Cabinet / Category':
+                    if val == prev_cabinet:
+                        val = ''
+                    else:
+                        prev_cabinet = val
                 c = ws.cell(row=ri, column=ci, value=val)
-                c.font = Font(name="Arial", size=10)
+                c.font = Font(name="Arial", size=10, bold=(key == 'Cabinet / Category' and val != ''))
                 c.fill = fill
                 c.border = bdr
-                if ci in (7, 8):  # Unit + Total price
+                if ci in (7, 8):
                     c.number_format = '#,##0.00'
                     c.alignment = Alignment(horizontal="right", vertical="center")
                 elif key == 'Select (Y/N)':
                     c.alignment = Alignment(horizontal="center", vertical="center")
                 else:
-                    c.alignment = Alignment(vertical="center", wrap_text=True)
+                    c.alignment = Alignment(vertical="center", wrap_text=False)
 
     n = len(items)
 
