@@ -9,7 +9,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.drawing.image import Image as XLImage
 
-st.set_page_config(page_title="IKEA PDF → Excel", page_icon="🛋️", layout="centered")
+st.set_page_config(page_title="IKEA PDF → Excel", page_icon="🛋️", layout="wide")
 st.title("🛋️ IKEA Planner PDF → Excel")
 st.markdown("Upload your IKEA planner PDF and get a clean Excel file instantly.")
 
@@ -244,9 +244,17 @@ if uploaded:
 
         edited = st.data_editor(
             display_df,
-            column_config={"Select": st.column_config.CheckboxColumn("Select", default=False)},
+            column_config={
+                "Select": st.column_config.CheckboxColumn("✅ Select", default=False, width="small"),
+                "Product Name": st.column_config.TextColumn("Product Name", width="medium"),
+                "Description": st.column_config.TextColumn("Description", width="large"),
+                "Article No.": st.column_config.TextColumn("Article No.", width="small"),
+                "Qty": st.column_config.NumberColumn("Qty", width="small"),
+                "Unit Price": st.column_config.NumberColumn("Unit Price (€)", width="small", format="€%.2f"),
+                "Total": st.column_config.NumberColumn("Total (€)", width="small", format="€%.2f"),
+            },
             use_container_width=True,
-            height=400,
+            height=500,
             hide_index=True
         )
 
